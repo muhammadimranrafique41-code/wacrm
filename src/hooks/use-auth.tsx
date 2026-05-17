@@ -45,13 +45,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Shared across init, auth-state-change listener, and the exposed
   // refreshProfile() callback. Reads the current session's user id and
   // pulls the matching profile row.
-  const fetchProfile = useCallback(async (userId: string) => {
+  const fetchProfile = useCallback(async (currentUser: User) => {
     const supabase = createClient();
     try {
       const { data, error } = await supabase
         .from("profiles")
         .select("id, full_name, email, avatar_url, role")
-        .eq("user_id", userId)
+        .eq("user_id", currentUser.id)
         .maybeSingle();
 
       if (error) {
@@ -64,7 +64,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      if (data) setProfile(data);
+      if (data) {
+        setProfile(data);
+        return;
+      }
+
+      const fallbackName =
+        (currentUser.user_metadata?.full_name as string | undefined) ||
+        (currentUser.user_metadata?.name as string | undefined) ||
+        currentUser.email?.split("@")[0] ||
+        "User";
+
+      const { data: created, error: createError } = await supabase
+        .from("profiles")
+        .upsert(
+          {
+            user_id: currentUser.id,
+            full_name: fallbackName,
+            email: currentUser.email ?? "",
+          },
+          { onConflict: "user_id" },
+        )
+        .select("id, full_name, email, avatar_url, role")
+        .maybeSingle();
+
+      if (createError) {
+        console.error("[AuthProvider] createProfile error:", {
+          message: createError.message,
+          details: createError.details,
+          hint: createError.hint,
+          code: createError.code,
+        });
+        return;
+      }
+
+      if (created) setProfile(created);
     } catch (err) {
       console.error("[AuthProvider] fetchProfile threw:", err);
     }
@@ -97,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (currentUser) {
           // Don't block loading on profile fetch — let the UI render
           // with the user info we already have, profile enriches async.
-          fetchProfile(currentUser.id);
+          fetchProfile(currentUser);
         }
       } catch (err) {
         console.error("[AuthProvider] init threw:", err);
@@ -117,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(currentUser);
 
       if (currentUser) {
-        fetchProfile(currentUser.id);
+        fetchProfile(currentUser);
       } else {
         setProfile(null);
       }
@@ -142,8 +176,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = useCallback(async () => {
     if (!user?.id) return;
-    await fetchProfile(user.id);
-  }, [user?.id, fetchProfile]);
+    await fetchProfile(user);
+  }, [user, fetchProfile]);
 
   return (
     <AuthContext.Provider

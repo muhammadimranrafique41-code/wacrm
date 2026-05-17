@@ -50,10 +50,15 @@ export function ProfileForm() {
 
   // Seed form state once the profile loads.
   useEffect(() => {
-    if (!profile) return;
-    setFullName(profile.full_name ?? '');
-    setEmail(profile.email ?? '');
-  }, [profile]);
+    const fallbackName =
+      (user?.user_metadata?.full_name as string | undefined) ||
+      (user?.user_metadata?.name as string | undefined) ||
+      user?.email?.split('@')[0] ||
+      '';
+
+    setFullName(profile?.full_name ?? fallbackName);
+    setEmail(profile?.email ?? user?.email ?? '');
+  }, [profile, user]);
 
   // Cleanup object URLs to avoid leaks.
   useEffect(() => {
@@ -102,7 +107,7 @@ export function ProfileForm() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !profile) return;
+    if (!user) return;
 
     const trimmedName = fullName.trim();
     if (!trimmedName) {
@@ -117,7 +122,7 @@ export function ProfileForm() {
 
     setSaving(true);
     try {
-      let nextAvatarUrl: string | null = profile.avatar_url ?? null;
+      let nextAvatarUrl: string | null = profile?.avatar_url ?? null;
 
       // Upload a newly-staged image, if any.
       if (pendingAvatar) {
@@ -142,14 +147,16 @@ export function ProfileForm() {
         nextAvatarUrl = null;
       }
 
-      // Persist name + avatar to profiles.
+      // Persist name + avatar to profiles. Upsert lets existing users recover
+      // if their profile row was missing before the DB trigger was installed.
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({
+        .upsert({
+          user_id: user.id,
+          email: user.email ?? trimmedEmail,
           full_name: trimmedName,
           avatar_url: nextAvatarUrl,
-        })
-        .eq('user_id', user.id);
+        }, { onConflict: 'user_id' });
       if (updateError) {
         throw new Error(`Save failed: ${updateError.message}`);
       }
@@ -160,7 +167,8 @@ export function ProfileForm() {
       // after the user clicks the link (handled by the handle_new_user
       // trigger pattern in production deployments).
       let emailSent = false;
-      if (trimmedEmail.toLowerCase() !== profile.email.toLowerCase()) {
+      const currentEmail = (profile?.email ?? user.email ?? '').toLowerCase();
+      if (trimmedEmail.toLowerCase() !== currentEmail) {
         const { error: emailError } = await supabase.auth.updateUser({
           email: trimmedEmail,
         });
@@ -195,9 +203,10 @@ export function ProfileForm() {
   };
 
   const dirty =
-    !!profile &&
-    (fullName.trim() !== (profile.full_name ?? '') ||
-      email.trim().toLowerCase() !== (profile.email ?? '').toLowerCase() ||
+    !!user &&
+    (!profile ||
+      fullName.trim() !== (profile.full_name ?? '') ||
+      email.trim().toLowerCase() !== (profile.email ?? user.email ?? '').toLowerCase() ||
       pendingAvatar !== null ||
       removeAvatar);
 
@@ -341,7 +350,7 @@ export function ProfileForm() {
           )}
 
           <div className="flex justify-end">
-            <Button type="submit" disabled={saving || !dirty || !profile}>
+            <Button type="submit" disabled={saving || !dirty || !user}>
               {saving ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />

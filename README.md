@@ -53,10 +53,15 @@ git clone https://github.com/<your-username>/wacrm.git
 cd wacrm
 npm install
 cp .env.local.example .env.local   # fill in Supabase + Meta creds
+# apply supabase/migrations in numeric order before signing in
 npm run dev
 ```
 
 Open <http://localhost:3000>.
+
+The dashboard expects the Supabase schema to exist. If you sign in before
+running the migrations, Supabase will return `PGRST205` errors for tables
+such as `profiles` and `messages`.
 
 Full setup — Supabase migrations, WhatsApp Business API config, and
 production deploy — is in [`docs/`](./docs/README.md).

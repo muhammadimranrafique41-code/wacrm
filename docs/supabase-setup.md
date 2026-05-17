@@ -39,6 +39,7 @@ idempotent (safe to re-run). The simplest way to apply them:
    - `005_broadcast_counts_incremental.sql`
    - `006_automations.sql`
    - `007_automations_increment_counter.sql`
+   - `008_profile_avatars_storage.sql`
 3. Paste into the editor and run. Each file prints its own status.
 
 ### Option B — Supabase CLI
@@ -59,6 +60,11 @@ Open **Table Editor** in the Supabase dashboard. You should see tables
 including `profiles`, `contacts`, `conversations`, `messages`, `pipelines`,
 `broadcasts`, `automations`, and `whatsapp_config`. If any are missing, a
 migration failed — re-run it and check the SQL output.
+
+If the app logs `PGRST205` with a message like `Could not find the table
+'public.profiles' in the schema cache` or `public.messages`, the app is
+connected to a Supabase project where these migrations have not been applied
+yet, or `.env.local` points at a different project than the one you migrated.
 
 ## 5. Auth settings
 

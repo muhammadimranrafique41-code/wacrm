@@ -29,6 +29,23 @@ code, it does not affect your build.
 
 ## Auth
 
+### `PGRST205: Could not find the table 'public.profiles'`
+
+The app is connected to a Supabase project that does not have the database
+schema yet. `profiles` and `messages` are created by
+`supabase/migrations/001_initial_schema.sql`.
+
+Fix:
+
+1. Open Supabase Dashboard -> SQL Editor for the project in
+   `NEXT_PUBLIC_SUPABASE_URL`.
+2. Run every file in `supabase/migrations/` in numeric order.
+3. Refresh the app after `profiles`, `messages`, `contacts`,
+   `conversations`, and the other tables appear in Table Editor.
+
+If you already ran the migrations, double-check that `.env.local` points at
+the same Supabase project you migrated.
+
 ### Sign-up succeeds but the confirmation email never arrives
 
 In Supabase → **Authentication → Providers → Email**, either:
